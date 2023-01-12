@@ -1,4 +1,3 @@
-from metric import EdgeMetric
 import torch
 from functools import partial
 import cv2
@@ -71,9 +70,12 @@ class ImageFormatter():
                 + true_positive[..., None] * white[None, None]
 
     @staticmethod
-    def format_input(path1, path2):
+    def format_input_paths(path1, path2):
         image1 = cv2.imread(path1)
         image2 = cv2.imread(path2)
+
+        image1 = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
+        image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2RGB)
 
         edges_map = ImageFormatter.get_edges_map(image1, image2)
 
@@ -82,10 +84,17 @@ class ImageFormatter():
         edges_map = ImageFormatter.format_image(edges_map)
 
         return image1, image2, edges_map
+
+    @staticmethod
+    def format_input_images(image1, image2):
+        edges_map = ImageFormatter.get_edges_map(image1, image2)
+
+        image1 = ImageFormatter.format_image(image1)
+        image2 = ImageFormatter.format_image(image2)
+        edges_map = ImageFormatter.format_image(edges_map)
+
+        return image1, image2, edges_map
     
-
-
-'''
 dist = cv2.imread("dist.png")
 dist2 = cv2.imread("dist.png")
 
