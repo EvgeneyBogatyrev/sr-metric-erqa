@@ -15,8 +15,6 @@ class EdgeMetric(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.edge_detector = partial(cv2.Canny, threshold1=100, threshold2=200)
-
         config = get_efficientdet_config(f'tf_efficientdet_{backbone}')
         config.image_size = [64, 64]
         config.num_classes = 1
@@ -38,7 +36,7 @@ class EdgeMetric(pl.LightningModule):
         for fi in feature_info:
             fi['num_chs'] *= 2
         
-        fpn_channels = 48
+        fpn_channels = 72
         self.class_net = nn.Sequential(
             SeparableConv2d(in_channels=fpn_channels, out_channels=fpn_channels, padding='same'),
             SeparableConv2d(in_channels=fpn_channels, out_channels=fpn_channels, padding='same'),
@@ -62,17 +60,17 @@ class EdgeMetric(pl.LightningModule):
         else:
             raise NotImplementedError(f'Aggregation "{self.hparams.agg}" not implemented')
 
-    def forward(self, img1, img2, return_heatmap=False):
-        ref = self.backbone(img1)
-        tgt = self.backbone(img2)
+    def forward(self, img1, img2, edges, return_heatmap=False):
+        feat1 = self.backbone(img1)
+        feat2 = self.backbone(img2)
+        feat_edges = self.backbone(edges)
         
+        #for r, t, f in zip(feat1, feat2, feat_edges):
+        #    print(r.shape, t.shape, f.shape)
 
-        for r, t, in zip(ref, tgt):
-            print(r.shape, t.shape)
-
-        stacked = [torch.cat((r, t), dim=1) for r, t in zip(ref, tgt)]
+        stacked = [torch.cat((l, r, e), dim=1) for l, r, e in zip(feat1, feat2, feat_edges)]
         
-        print(stacked[0].shape)
+        #print(stacked[0].shape)
         
         #stacked = self.fpn(stacked)
 
