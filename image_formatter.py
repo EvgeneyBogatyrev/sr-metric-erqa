@@ -16,7 +16,7 @@ class ImageFormatter():
         return image
 
     @staticmethod
-    def match_edges(self, edge, gt_edge, shift_compensation=False, penalize_wider_edges=False):
+    def match_edges(edge, gt_edge, shift_compensation=False, penalize_wider_edges=False):
         assert gt_edge.shape == edge.shape
 
         true_positive = np.zeros_like(edge)
@@ -38,7 +38,7 @@ class ImageFormatter():
                 ad = edge * gt_ * np.logical_not(true_positive)
 
                 np.logical_or(true_positive, ad, out=true_positive)
-                if self.penalize_wider_edges:
+                if penalize_wider_edges:
                     # Unmark already used edges
                     ad = np.roll(ad, -j, axis=1)
                     ad = np.roll(ad, -i, axis=0)
@@ -59,9 +59,9 @@ class ImageFormatter():
 
         true_positive, false_negative = ImageFormatter.match_edges(edges1, edges2)
 
-        blue = np.array([1, 0, 0])
-        red = np.array([0, 0, 1])
-        white = np.array([1, 1, 1])
+        blue = np.array([255.0, 0, 0])
+        red = np.array([0, 0, 255.0])
+        white = np.array([255.0, 255.0, 255.0])
 
         false_positive = edges2 - true_positive
 
@@ -94,15 +94,3 @@ class ImageFormatter():
         edges_map = ImageFormatter.format_image(edges_map)
 
         return image1, image2, edges_map
-    
-dist = cv2.imread("dist.png")
-dist2 = cv2.imread("dist.png")
-
-
-dist = format_image(dist)
-dist2 = format_image(dist2)
-
-metric = EdgeMetric()
-
-print(metric.forward(dist, dist2))
-'''

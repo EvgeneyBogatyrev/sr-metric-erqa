@@ -14,6 +14,8 @@ from albumentations.pytorch import ToTensorV2
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS, EVAL_DATALOADERS
 from torch.utils.data import Dataset, DataLoader, Subset
 
+import matplotlib.pyplot as plt
+
 from image_formatter import ImageFormatter
 
 
@@ -31,25 +33,22 @@ class SRDataset(Dataset):
         
         self.images = {}
         for video in video_names:
+            if video not in self.scores_dict.keys():
+                continue
             self.images[video] = {}
-            for sr in os.listdir(root_path / video):
+            for sr in os.listdir(self.root_path / video):
+                if sr not in self.scores_dict[video].keys():
+                    continue
                 self.images[video][sr] = []
-                for image in os.listdir(root_path / video / sr):
-                    self.images[video][sr].append(root_path / video / sr / image)
+                for image in os.listdir(self.root_path / video / sr):
+                    self.images[video][sr].append(self.root_path / video / sr / image)
         
         # Transform part (needs revision)
-        self.source_transform = A.Compose([
+        self.transform = A.Compose([
             A.HorizontalFlip(),
             A.VerticalFlip(),
             A.Rotate(value=0),
-            A.RandomSizedCrop((8, 32), 64, 64), # TODO: Check
-        ],
-            additional_targets={
-                'image1': 'image'
-            }
-        )
-        
-        self.positive_transform = A.Compose([
+            #A.RandomSizedCrop((8, 32), 64, 64), # TODO: Check
             A.ShiftScaleRotate(rotate_limit=5, value=0)
         ])
 
@@ -66,13 +65,13 @@ class SRDataset(Dataset):
 
         self.degradation_transform = A.Compose(degradation_transform)
 
-        self.transform = transform
         self.val = val
 
     def __len__(self):
         total = 0
         for video in self.images.keys():
             total += sum([len(x) for x in self.images[video].values()])
+        return total
 
     def __getitem__(self, idx):
         # -> (img1, img2, edges, subj1, subj2)
@@ -103,19 +102,33 @@ class SRDataset(Dataset):
         assert frame_index >= 0, "Dataloader error"
 
         ref_image_path = self.images[video][sr][frame_index]
-        other_sr = random.choice(self.images[video].keys())
+        other_sr = random.choice(list(self.images[video].keys()))
         tgt_image_path = self.images[video][other_sr][frame_index]
 
-        ref_image = cv2.imread(ref_image_path)
-        tgt_image = cv2.imread(tgt_image_path)
+        ref_image = cv2.imread(str(ref_image_path))
+        tgt_image = cv2.imread(str(tgt_image_path))
         ref_image = cv2.cvtColor(ref_image, cv2.COLOR_BGR2RGB)
         tgt_image = cv2.cvtColor(tgt_image, cv2.COLOR_BGR2RGB)
 
         # Transform
+        augmented_ref_image = self.transform(image=ref_image)['image']
+        augmented_tgt_image = self.transform(image=tgt_image)['image']
+
+        print(ref_image_path)
+        plt.imshow(augmented_ref_image)
+        plt.show()
+        print(tgt_image_path)
+        plt.imshow(augmented_tgt_image)
+        plt.show()
+
+        ref_image_tensor, tgt_image_tensor, edges = \
+            ImageFormatter.format_input_images(augmented_ref_image, augmented_tgt_image)
 
         # Get subjective scores
-        score1 = self.scores_dict[video + "@" + sr]
-        score2 = self.scores_dict[video + "@" + other_sr]
+        score1 = self.scores_dict[video][sr]
+        score2 = self.scores_dict[video][other_sr]
+
+        print(score1, score2)
 
         # return data
-        return ..., ..., ..., score1, score2
+        return ref_image_tensor, tgt_image_tensor, edges, score1, score2
