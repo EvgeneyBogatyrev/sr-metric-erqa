@@ -5,6 +5,7 @@ from effdet.efficientdet import *
 from effdet.efficientdet import _init_weight_alt, _init_weight
 from scipy.stats import pearsonr, spearmanr
 import cv2
+import numpy as np
 
 #import utils
 
@@ -60,83 +61,30 @@ class EdgeMetric(pl.LightningModule):
         else:
             raise NotImplementedError(f'Aggregation "{self.hparams.agg}" not implemented')
 
-    def forward(self, img1, img2, edges, return_heatmap=False):
+    def forward(self, img1, img2, edges):
         feat1 = self.backbone(img1)
         feat2 = self.backbone(img2)
         feat_edges = self.backbone(edges)
         
-        #for r, t, f in zip(feat1, feat2, feat_edges):
-        #    print(r.shape, t.shape, f.shape)
-
         stacked = [torch.cat((l, r, e), dim=1) for l, r, e in zip(feat1, feat2, feat_edges)]
         
-        #print(stacked[0].shape)
-        
-        #stacked = self.fpn(stacked)
-
         pred = self.class_net(stacked[0])
 
-        #if return_heatmap:
-        #    return pred
-        #else:
         return self.aggregate(pred)
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
 
     def loss_func(self, y_pred, y_true):
-        return F.binary_cross_entropy(y_pred, y_true)
-
-    def log_heatmaps(self, src, pos, neg, semi, pos_res, neg_res, semi_res, mask, tag):
-        fig, axes = plt.subplots(nrows=5, ncols=8)
-        for i, ax in enumerate(axes):
-            for a in ax:
-                a.axis('off')
-
-            ax[0].imshow(src[i].cpu().detach()[0], cmap='gray')
-            ax[1].imshow(pos[i].cpu().detach()[0], cmap='gray')
-            ax[2].imshow(pos_res[i].cpu().detach()[0], vmin=0, vmax=1)
-            ax[3].imshow(neg[i].cpu().detach()[0], cmap='gray')
-            ax[4].imshow(neg_res[i].cpu().detach()[0], vmin=0, vmax=1)
-            ax[5].imshow(semi[i].cpu().detach()[0], cmap='gray')
-            ax[6].imshow(semi_res[i].cpu().detach()[0], vmin=0, vmax=1)
-            ax[7].imshow(mask[i].cpu().detach(), vmin=0, vmax=1)
-
-        axes[0][0].set_title('Source')
-        axes[0][1].set_title('Pos')
-        axes[0][2].set_title('PosMap')
-        axes[0][3].set_title('Neg')
-        axes[0][4].set_title('NegMap')
-        axes[0][5].set_title('Semi')
-        axes[0][6].set_title('SemiMap')
-        axes[0][7].set_title('Mask')
-
-        plt.tight_layout()
-
-        self.logger.experiment.add_figure(tag, fig, self.current_epoch)
-
-    def base_step(self, batch, batch_idx, stage, log=True, figures=False):
-        src, pos, neg, semi, mask = batch
-
-        if figures and batch_idx == 0:
-            with torch.no_grad():
-                pos_res = self(src, pos, return_heatmap=True)
-                neg_res = self(src, neg, return_heatmap=True)
-        semi_res = self(src, semi, return_heatmap=True)
-
-        loss = self.loss_func(semi_res.squeeze(1), mask)
-
-        if log:
-            self.log(f'{stage}/Loss', loss, prog_bar=True, add_dataloader_idx=False)
-            self.log(f'{stage}/SemiValue', semi_res.mean(), add_dataloader_idx=False)
-
-        if figures and batch_idx == 0:
-            self.log_heatmaps(src, pos, neg, semi, pos_res, neg_res, semi_res, mask, f'{stage}/Grid')
-
-        return loss
+        return F.mse_loss(y_pred, y_true)
 
     def training_step(self, batch, batch_idx):
-        return self.base_step(batch, batch_idx, 'Train')
+        img1, img2, edges, score1, score2 = batch[0], batch[1], batch[2], batch[3], batch[4]
+        result = self.forward(img1, img2, edges)
+        real_res = torch.tensor([score1, score2])
+        real_res = real_res.type(torch.cuda.FloatTensor)
+        loss = self.loss_func(result, real_res)
+        return loss
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         if dataloader_idx == 0:

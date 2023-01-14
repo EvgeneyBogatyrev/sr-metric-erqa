@@ -2,6 +2,7 @@ import torch
 from functools import partial
 import cv2
 import numpy as np
+import albumentations as A
 
 
 class ImageFormatter():
@@ -9,9 +10,13 @@ class ImageFormatter():
     edge_detector = partial(cv2.Canny, threshold1=100, threshold2=200)
 
     @staticmethod
-    def format_image(image):
+    def format_image(image, edges=False):
         shape = image.shape
-        image = torch.tensor(image.reshape(1, shape[2], shape[0], shape[1]))
+        if not edges:
+            transform = A.Compose([A.Normalize()])
+            transformed = transform(image=image)
+            image = transformed["image"]
+        image = torch.tensor(image.reshape(shape[2], shape[0], shape[1]))
 
         return image
 
@@ -59,9 +64,9 @@ class ImageFormatter():
 
         true_positive, false_negative = ImageFormatter.match_edges(edges1, edges2)
 
-        blue = np.array([255.0, 0, 0])
-        red = np.array([0, 0, 255.0])
-        white = np.array([255.0, 255.0, 255.0])
+        blue = np.array([255, 0, 0])
+        red = np.array([0, 0, 255])
+        white = np.array([255, 255, 255])
 
         false_positive = edges2 - true_positive
 
