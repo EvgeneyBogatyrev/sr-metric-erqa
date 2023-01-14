@@ -82,7 +82,7 @@ class SRDataset(Dataset):
     def __len__(self):
         total = 0
         for video in self.images.keys():
-            total += sum([len(x) for x in self.images[video].values()])
+            total += sum([len(x) - len(self.banned_frames[video]) for x in self.images[video].values()])
         return total
 
     def __getitem__(self, idx):

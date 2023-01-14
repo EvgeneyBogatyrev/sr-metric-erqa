@@ -69,74 +69,40 @@ class EdgeMetric(pl.LightningModule):
         stacked = [torch.cat((l, r, e), dim=1) for l, r, e in zip(feat1, feat2, feat_edges)]
         
         pred = self.class_net(stacked[0])
-
         return self.aggregate(pred)
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
 
-    def loss_func(self, y_pred, y_true):
-        return F.mse_loss(y_pred, y_true)
-
-    def training_step(self, batch, batch_idx):
-        img1, img2, edges, score1, score2 = batch[0], batch[1], batch[2], batch[3], batch[4]
-        result = self.forward(img1, img2, edges)
-        real_res = torch.tensor([score1, score2])
-        real_res = real_res.type(torch.cuda.FloatTensor)
-        loss = self.loss_func(result, real_res)
+    def loss_func(self, y_pred, y_true_1, y_true_2):       
+        loss = F.l1_loss(y_pred.T[0] - y_pred.T[1], y_true_1 - y_true_2)
+        loss = loss.type(torch.cuda.FloatTensor)
         return loss
 
-    def validation_step(self, batch, batch_idx, dataloader_idx):
-        if dataloader_idx == 0:
-            self.base_step(batch, batch_idx, 'Val', figures=True)
-        elif dataloader_idx == 1:
-            name, ref, tgt, subj = batch
+    def training_step(self, batch, batch_idx):
+        img1, img2, edges, score1, score2 = batch
+        result = self.forward(img1, img2, edges)
+        loss = self.loss_func(result, score1, score2)
+        return loss
 
-            def _run(gt, image):
-                return self(gt, image, True)
+    def validation_step(self, batch, batch_idx):
+        img1, img2, edges, score1, score2 = batch
+        result = self.forward(img1, img2, edges)
+        loss = self.loss_func(result, score1, score2)
+        return {'val_loss': loss}
 
-            res = utils.patch_metric(_run, ref, tgt, self.config.image_size[0], device=self.device)
-
-            return name, res, subj
-        elif dataloader_idx == 2:
-            self.base_step(batch, batch_idx, 'Train', log=False, figures=True)
-
+    # OPTIONAL
+    def training_epoch_end(self, outputs):
+        """log and display average train loss and accuracy across epoch"""
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        
+        print(f"| Train_loss: {avg_loss:.3f}" )
+        self.log('train_loss', avg_loss, prog_bar=True, on_epoch=True, on_step=False)
+     
+    # OPTIONAL
     def validation_epoch_end(self, outputs):
-        outputs = outputs[1]
-
-        names = []
-        heatmaps = []
-        subjectives = []
-
-        for name, heatmap, subjective in outputs:
-            names.extend(name)
-            heatmaps.append(heatmap)
-            subjectives.append(subjective.item())
-
-        # Plot vis
-        fig, axes = plt.subplots(nrows=2, ncols=2)
-        for ax, name, heatmap in zip(axes.flatten(), names, heatmaps):
-            ax.imshow(heatmap.cpu().detach(), vmin=0, vmax=1)
-            ax.set_title(f'{name}: {heatmap.mean().item():.2f}')
-
-        plt.tight_layout()
-        self.logger.experiment.add_figure(f'Val/SR_res', fig, self.current_epoch)
-
-        # Calculate correlation
-        scores = self.aggregate(torch.stack(heatmaps)).tolist()
-        pearson = pearsonr(subjectives, scores)[0]
-        spearman = spearmanr(subjectives, scores)[0]
-
-        self.log('Val/SR_pearson', pearson, add_dataloader_idx=False)
-        self.log('Val/SR_spearman', spearman, add_dataloader_idx=False)
-
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        ref, tgt = batch
-
-        def _run(gt, image):
-            return self(gt, image, True)
-
-        pred = utils.patch_metric(_run, ref, tgt, self.config.image_size[0], device=self.device)
-
-        return self.aggregate(pred), pred
-
+        """log and display average val loss and accuracy"""
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+            
+        print(f"[Epoch {self.trainer.current_epoch:3}] Val_loss: {avg_loss:.3f}", end= " ")
+        self.log('val_loss', avg_loss, prog_bar=True, on_epoch=True, on_step=False)
