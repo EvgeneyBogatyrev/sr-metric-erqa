@@ -51,33 +51,17 @@ class SRDataset(Dataset):
                         continue
                     self.images[video][sr].append(self.root_path / video / sr / image)
         
-        # Transform part (needs revision)
+        
         self.transform = A.Compose([
             A.HorizontalFlip(),
             A.VerticalFlip(),
-            A.Rotate(limit=5),
-            A.ToGray(p=0.05),
             A.RandomSizedCrop((100, 270), 270, 480, 1.777), # TODO: Check
-            A.ShiftScaleRotate(rotate_limit=30, value=0),
-            A.CLAHE(p=0.1)
+            #A.CLAHE(p=0.1)     # Ablation study
         ],
             additional_targets={'other_image': 'image'}
         )
-
-        degradation_transform = [
-            A.RandomBrightnessContrast(brightness_by_max=False),
-            A.OneOf([
-                A.GaussNoise(var_limit=(10, 20)),
-                A.GaussianBlur(),
-                A.Downscale(interpolation=cv2.INTER_LINEAR),
-            ]),
-            A.Sharpen(),
-            A.ImageCompression()
-        ]
-
-        self.degradation_transform = A.Compose(degradation_transform)
-
         self.val = val
+        self.live = False
 
     def __len__(self):
         total = 0
@@ -147,6 +131,62 @@ class SRDataset(Dataset):
 
         # return data
         return ref_image_tensor.float(), tgt_image_tensor.float(), edges.float(), score1, score2
+
+
+
+class LIVEDataset(Dataset):
+    def __init__(self, root_path, scores_path, cases=None, val=False):
+        self.root_path = Path(root_path)
+        self.videos_paths = []
+        self.cases = cases
+
+        for video in os.listdir(self.root_path):
+            if cases is not None and video in cases:
+                continue
+            for case_name in os.listdir(self.root_path / video):
+                self.videos_paths.append(self.root_path / video / case_name)
+        
+        self.scores_path = Path(scores_path)
+
+        seqs_file = self.scores_path / "seqs.txt"
+        data_file = self.scores_path / "data.txt"
+
+        with open(seqs_file, "r") as f:
+            seqs = list(f.readlines())
+
+        with open(data_file, "r") as f:
+            data = list(f.readlines())
+
+        self.scores = {}
+
+        for seq, dt in zip(seqs, data):
+            words = dt.split(" ")
+            value = float(words[0])
+            video = seq[:2]
+            self.scores[self.root_path / video / seq[:-5]] = value
+
+        
+        self.val = val
+        self.live = True
+
+    def __len__(self):
+        return len(self.videos_paths)
+    
+
+    def __getitem__(self, index):
+        frames = list(os.listdir(self.videos_paths[index]))
+        video_path = self.videos_paths[index]
+        words = video_path.split("/")
+        video_name = words[-2]
+
+        same_video = [x for x in self.videos_paths if x.split("/")[-2] == video_name]
+        print(same_video)
+
+        other_video = random.choice(same_video)
+        
+        return [self.videos_paths[index] / frame for frame in frames], self.scores[self.videos_paths[index]], \
+            [other_video / frame for frame in list(os.listdir(other_video))], self.scores[other_video]
+
 
 
 class DataModule(pl.LightningDataModule):

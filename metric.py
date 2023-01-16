@@ -7,14 +7,17 @@ from scipy.stats import pearsonr, spearmanr
 import cv2
 import numpy as np
 
+from image_formatter import ImageFormatter
 #import utils
 
 
 class EdgeMetric(pl.LightningModule):
     def __init__(self, backbone='d0', lr=0.001, agg='mean', unfreeze_backbone=False,
-                 reset_backbone=False):
+                 reset_backbone=False, test_dataloader=None):
         super().__init__()
         self.save_hyperparameters()
+
+        self.test_dataloader = test_dataloader
 
         config = get_efficientdet_config(f'tf_efficientdet_{backbone}')
         config.image_size = [64, 64]
@@ -41,7 +44,7 @@ class EdgeMetric(pl.LightningModule):
         self.class_net = nn.Sequential(
             SeparableConv2d(in_channels=fpn_channels, out_channels=fpn_channels, padding='same'),
             SeparableConv2d(in_channels=fpn_channels, out_channels=fpn_channels, padding='same'),
-            SeparableConv2d(in_channels=fpn_channels, out_channels=2, padding='same', bias=True,
+            SeparableConv2d(in_channels=fpn_channels, out_channels=1, padding='same', bias=True,
                             norm_layer=None, act_layer=None),
             nn.Sigmoid()
         )
@@ -75,7 +78,7 @@ class EdgeMetric(pl.LightningModule):
         return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
 
     def loss_func(self, y_pred, y_true_1, y_true_2):       
-        loss = F.l1_loss(y_pred.T[0] - y_pred.T[1], y_true_1 - y_true_2)
+        loss = F.l1_loss(y_pred, y_true_1 - y_true_2)
         loss = loss.type(torch.cuda.FloatTensor)
         return loss
 
@@ -106,3 +109,12 @@ class EdgeMetric(pl.LightningModule):
             
         print(f"[Epoch {self.trainer.current_epoch:3}] Val_loss: {avg_loss:.3f}", end= " ")
         self.log('val_loss', avg_loss, prog_bar=True, on_epoch=True, on_step=False)
+
+        for path_list, score in self.test_dataloader:
+            predicted_scores = []
+            for index, path_to_image in enumerate(path_list):
+                image = ImageFormatter.format_image_path(path_to_image)
+
+                same_video = [x for x in ]
+                
+

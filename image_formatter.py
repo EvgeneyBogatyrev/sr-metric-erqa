@@ -21,6 +21,20 @@ class ImageFormatter():
         return image
 
     @staticmethod
+    def format_image_path(image_path, edges=False):
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        shape = image.shape
+        if not edges:
+            transform = A.Compose([A.Normalize()])
+            transformed = transform(image=image)
+            image = transformed["image"]
+        image = torch.tensor(image.reshape(shape[2], shape[0], shape[1]))
+
+        return image
+
+    @staticmethod
     def match_edges(edge, gt_edge, shift_compensation=False, penalize_wider_edges=False):
         assert gt_edge.shape == edge.shape
 
@@ -86,7 +100,7 @@ class ImageFormatter():
 
         image1 = ImageFormatter.format_image(image1)
         image2 = ImageFormatter.format_image(image2)
-        edges_map = ImageFormatter.format_image(edges_map)
+        edges_map = ImageFormatter.format_image(edges_map, edges=True)
 
         return image1, image2, edges_map
 
@@ -96,6 +110,6 @@ class ImageFormatter():
 
         image1 = ImageFormatter.format_image(image1)
         image2 = ImageFormatter.format_image(image2)
-        edges_map = ImageFormatter.format_image(edges_map)
+        edges_map = ImageFormatter.format_image(edges_map, edges=True)
 
         return image1, image2, edges_map

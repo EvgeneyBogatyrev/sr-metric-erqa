@@ -11,19 +11,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from dataset import SRDataset
 from metric import EdgeMetric
 
-def train():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    dataset = SRDataset("~/mnt/calypso/25e_zim/metric/dataset", \
-    "./subjective_scores.json", banned_frames="./banned_frames.json", cases=["statue"])
-    train_loader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=8)
-
-    model = EdgeMetric()
-    model.to(device)
-
-    trainer = pl.Trainer(accelerator="gpu")
-    trainer.fit(model=model, train_dataloaders=train_loader)
-
 def train_model():
     #Init Datasets
     train_set = SRDataset("/main/mnt/calypso/25e_zim/metric/dataset", \

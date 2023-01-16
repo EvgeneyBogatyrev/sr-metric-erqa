@@ -1,0 +1,5 @@
+backbone: d0
+lr: 0.001
+agg: mean
+unfreeze_backbone: false
+reset_backbone: false
