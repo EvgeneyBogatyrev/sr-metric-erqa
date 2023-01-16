@@ -14,7 +14,7 @@ from metric import EdgeMetric
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    dataset = SRDataset("C:/SR/code/paper_metric_dataset/SR_dataset_subjective/dataset", \
+    dataset = SRDataset("~/mnt/calypso/25e_zim/metric/dataset", \
     "./subjective_scores.json", banned_frames="./banned_frames.json", cases=["statue"])
     train_loader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=8)
 
@@ -26,14 +26,14 @@ def train():
 
 def train_model():
     #Init Datasets
-    train_set = SRDataset("C:/SR/code/paper_metric_dataset/SR_dataset_subjective/dataset", \
-    "./subjective_scores.json", banned_frames="./banned_frames.json", cases=["statue"])
-    val_set = SRDataset("C:/SR/code/paper_metric_dataset/SR_dataset_subjective/dataset", \
+    train_set = SRDataset("/main/mnt/calypso/25e_zim/metric/dataset", \
     "./subjective_scores.json", banned_frames="./banned_frames.json", cases=["beach"])
+    val_set = SRDataset("/main/mnt/calypso/25e_zim/metric/dataset", \
+    "./subjective_scores.json", banned_frames="./banned_frames.json", cases=["bridge"])
 
     #Init Dataloaders
-    dl_train = DataLoader(train_set, batch_size=2, shuffle=True, num_workers=8)
-    dl_val = DataLoader(val_set, batch_size=2, shuffle=False, num_workers=8)
+    dl_train = DataLoader(train_set, batch_size=4, shuffle=True, num_workers=8)
+    dl_val = DataLoader(val_set, batch_size=4, shuffle=False, num_workers=8)
 
     ## Save the model periodically by monitoring a quantity.
     MyModelCheckpoint = ModelCheckpoint(dirpath='runs/pl_segmentation',
