@@ -2,3 +2,6 @@ __pycache__/
 *.png
 runs/
 deep-erqa/
+banned_frames copy 2.json
+lightning_logs/
+train_old.py
