@@ -12,4 +12,11 @@ from dataset import SRDataset, LIVEDataset
 
 #print(res, stats[3], stats[4])
 
-data = LIVEDataset("")
+data = LIVEDataset("/main/mnt/calypso/25e_zim/metric/LIVE/images", "/main/mnt/calypso/25e_zim/metric/LIVE", cases=["bs"])
+
+print(len(data))
+
+chunk = data.__getitem__(3)
+
+print(chunk[0][0], chunk[2][0])
+print(chunk[1], chunk[3])

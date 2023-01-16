@@ -141,9 +141,11 @@ class LIVEDataset(Dataset):
         self.cases = cases
 
         for video in os.listdir(self.root_path):
-            if cases is not None and video in cases:
+            if cases is not None and video not in cases:
                 continue
             for case_name in os.listdir(self.root_path / video):
+                if case_name[2:4] == "1_":
+                    continue
                 self.videos_paths.append(self.root_path / video / case_name)
         
         self.scores_path = Path(scores_path)
@@ -160,12 +162,12 @@ class LIVEDataset(Dataset):
         self.scores = {}
 
         for seq, dt in zip(seqs, data):
-            words = dt.split(" ")
+            words = dt.split("\t")
             value = float(words[0])
             video = seq[:2]
-            self.scores[self.root_path / video / seq[:-5]] = value
+            if self.root_path / video / seq[:-5] in self.videos_paths:
+                self.scores[self.root_path / video / seq[:-5]] = value
 
-        
         self.val = val
         self.live = True
 
@@ -176,14 +178,16 @@ class LIVEDataset(Dataset):
     def __getitem__(self, index):
         frames = list(os.listdir(self.videos_paths[index]))
         video_path = self.videos_paths[index]
-        words = video_path.split("/")
+        words = str(video_path).split("/")
         video_name = words[-2]
 
-        same_video = [x for x in self.videos_paths if x.split("/")[-2] == video_name]
+        same_video = [x for x in self.videos_paths if str(x).split("/")[-2] == video_name]
         print(same_video)
 
         other_video = random.choice(same_video)
-        
+
+        print(other_video)
+        print(os.listdir(other_video))
         return [self.videos_paths[index] / frame for frame in frames], self.scores[self.videos_paths[index]], \
             [other_video / frame for frame in list(os.listdir(other_video))], self.scores[other_video]
 
